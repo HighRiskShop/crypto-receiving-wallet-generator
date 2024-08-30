@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Payment Address Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        select, input, button { margin: 10px 0; padding: 5px; }
+        #result { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Crypto Payment Address Generator</h1>
+    <form id="paymentForm">
+        <label for="amount">Amount:</label>
+        <input type="number" id="amount" required min="0.01" step="0.01">
+
+        <label for="fiatCurrency">Fiat Currency:</label>
+        <select id="fiatCurrency"></select>
+
+        <label for="cryptoTicker">Crypto Ticker:</label>
+        <select id="cryptoTicker"></select>
+
+        <label for="wallet">Payout Wallet Address:</label>
+        <input type="text" id="merchantWallet">
+
+        <button type="submit">Generate Payment Address</button>
+    </form>
+
+    <div id="result"></div>
+    <div id="qrcode"></div>
+
+    <script>
+    const fiatCurrencies = ['USD', 'EUR', 'GBP', 'CAD', 'JPY', 'AED', 'MYR', 'IDR', 'THB', 'CHF', 'SGD', 'RUB', 'ZAR', 'TRY', 'LKR', 'RON', 'BGN', 'HUF', 'CZK', 'PHP', 'PLN', 'UGX', 'MXN', 'INR', 'HKD', 'CNY', 'BRL', 'DKK', 'TWD', 'AUD', 'NGN', 'SEK', 'NOK', 'UAH'];
+
+    const cryptoTickers = ['btc', 'bch', 'ltc', 'doge', 'bep20/1inch', 'bep20/ada', 'bep20/bnb', 'bep20/btcb', 'bep20/cake', 'bep20/dai', 'bep20/doge', 'bep20/eth', 'bep20/inj', 'bep20/ltc', 'bep20/matic', 'bep20/phpt', 'bep20/shib', 'bep20/thc', 'bep20/usdc', 'bep20/usdt', 'bep20/virtu', 'bep20/xrp', 'erc20/1inch', 'erc20/arb', 'erc20/bnb', 'erc20/dai', 'erc20/eurc', 'erc20/eurt', 'erc20/link', 'erc20/mkr', 'erc20/nexo', 'erc20/pepe', 'erc20/shib', 'erc20/tusd', 'erc20/usdc', 'erc20/usdp', 'erc20/usdt', 'erc20/verse', 'arbitrum/arb', 'arbitrum/dai', 'arbitrum/eth', 'arbitrum/link', 'arbitrum/pepe', 'arbitrum/usdc', 'arbitrum/usdc.e', 'arbitrum/usdt', 'arbitrum/wbtc', 'polygon/avax', 'polygon/mana', 'polygon/matic', 'polygon/smt', 'polygon/usdc', 'polygon/usdc.e', 'polygon/usdt', 'polygon/virtu', 'polygon/wbtc', 'polygon/weth', 'avax-c/avax', 'avax-c/btc.b', 'avax-c/eurc', 'avax-c/usdc', 'avax-c/usdc.e', 'avax-c/usdt', 'avax-c/wavax', 'avax-c/wbtc.e', 'avax-c/weth.e', 'base/dai', 'base/eth', 'base/eurc', 'base/usdc', 'optimism/dai', 'optimism/eth', 'optimism/link', 'optimism/op', 'optimism/usdc', 'optimism/usdc.e', 'optimism/usdt', 'optimism/wbtc', 'eth', 'trc20/aedt', 'trc20/btc', 'trc20/inrt', 'trc20/tusd', 'trc20/usdt', 'trx'];
+
+    const fiatSelect = document.getElementById('fiatCurrency');
+    const cryptoSelect = document.getElementById('cryptoTicker');
+
+    fiatCurrencies.forEach(currency => {
+        const option = document.createElement('option');
+        option.value = currency;
+        option.textContent = currency;
+        fiatSelect.appendChild(option);
+    });
+
+    cryptoTickers.forEach(ticker => {
+        const option = document.createElement('option');
+        option.value = ticker;
+        option.textContent = ticker;
+        cryptoSelect.appendChild(option);
+    });
+
+    document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const amount = document.getElementById('amount').value;
+        const fiatCurrency = document.getElementById('fiatCurrency').value;
+        const cryptoTicker = document.getElementById('cryptoTicker').value;
+        const merchantWallet = document.getElementById('merchantWallet').value;
+        const callbackUrl = `https://www.highriskshop.com/payment-link/invoice.php?payment=${Date.now()}_${Math.floor(Math.random() * 9000000) + 1000000}`;
+
+        try {
+            // Convert fiat to crypto
+            const convertResponse = await fetch(`https://api.highriskshop.com/crypto/${cryptoTicker}/convert.php?from=${fiatCurrency}&value=${amount}`);
+            const convertData = await convertResponse.json();
+
+            if (convertData.status !== 'success') {
+                throw new Error('Conversion failed');
+            }
+
+            const cryptoAmount = convertData.value_coin;
+
+            // Generate wallet address
+            const walletResponse = await fetch(`https://api.highriskshop.com/crypto/${cryptoTicker}/wallet.php?address=${merchantWallet}&callback=${encodeURIComponent(callbackUrl)}`);
+            const walletData = await walletResponse.json();
+
+            if (!walletData.address_in) {
+                throw new Error('Failed to generate wallet address');
+            }
+
+            const paymentAddress = walletData.address_in;
+
+            // Generate QR code
+            const qrResponse = await fetch(`https://api.highriskshop.com/crypto/${cryptoTicker}/qrcode.php?address=${paymentAddress}`);
+            const qrData = await qrResponse.json();
+
+            if (qrData.status !== 'success') {
+                throw new Error('Failed to generate QR code');
+            }
+
+            // Display result
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <h2>Payment Details</h2>
+                <p>Amount: ${amount} ${fiatCurrency}</p>
+                <p>Crypto Amount: ${cryptoAmount} ${cryptoTicker}</p>
+                <p>Payment Address: ${paymentAddress}</p>
+            `;
+
+            // Display QR code
+            document.getElementById('qrcode').innerHTML = `<img src="data:image/png;base64,${qrData.qr_code}" alt="Payment QR Code">`;
+
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('result').innerHTML = `<p>Error: ${error.message}</p>`;
+        }
+    });
+    </script>
+</body>
+</html>
